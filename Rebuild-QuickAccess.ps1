@@ -43,25 +43,35 @@ Remove-Item "$env:APPDATA\Microsoft\Windows\Recent\*" -Include *.* -Force -Recur
 #Remove-Item "$env:APPDATA\Microsoft\Windows\Recent\AutomaticDestinations"
 #Remove-Item "$env:APPDATA\Microsoft\Windows\Recent\CustomDestinations"
 
+
+## MAke sure that the SymLinkType is set to: Directory or File
+
 $Pins = Import-Csv -Path "$CRSPath\QuickAccess.csv"
 If (!(Test-Path "$env:USERPROFILE\Quick Access Pins")) {New-Item -ItemType Directory -Path $env:USERPROFILE -Name Quick Access Pins }
 $PinsDir = "$env:USERPROFILE\Quick Access Pins"
 
-$CurrentPinSymDirs = Get-ChildItem -Path $PinsDir | Where-Object { ($_.Attributes -match "ReparsePoint")}
+$CurrentPinSymItems = Get-ChildItem -Path $PinsDir | Where-Object { ($_.Attributes -match "ReparsePoint")}
 
 #Clear Out Existing SymLinks in the $PinsDir that are NOT in the CSV List (Orphans)
-foreach ($Dir in $CurrentPinSymDirs) {
-$DirName = $Dir.Name
-If (!($Pins.SymDirName -contains $DirName)) {
-    Write-Host "Found Orphan SymLink: $PinsDir\$Dir.Name"
-    Get-Item $PinsDir\$DirName | %{$_.Delete()}
+foreach ($Item in $CurrentPinSymItems) {
+$ItemName = $Item.Name
+If (!($Pins.SymLinkName -contains $ItemName)) {
+    Write-Host "Found Orphan SymLink: $PinsDir\$Item.Name"
+    Pause
+    Get-Item $PinsDir\$ItemName | %{$_.Delete()}
     }
 }
 
 #Create New SymLinks in the $PinsDir that are in the CSV List and Create PIN (In order of the CSV file)
 foreach ($Pin in $Pins) {
-$PinSymDirName = $Pin.SymDirName
+$PinSymLinkName = $Pin.SymLinkName
+$PinSymLinkType = $Pin.SymLinkType
 $PinReferencedPath = $Pin.ReferencedPath
-If (!(Get-ChildItem -Path $PinsDir\$PinSymDirName)) {New-Item -ItemType Junction -Path "$PinsDir\$PinSymDirName" -Target $PinReferencedPath}
-Set-QuickAccess -Action Pin -Path $PinsDir\$PinSymDirName
+
+If (!(Test-Path -Path $PinsDir\$PinSymLinkName -ErrorAction SilentlyContinue)) {
+    If ($PinSymLinkType -eq "Directory") {New-Item -ItemType Junction -Path "$PinsDir\$PinSymLinkName" -Target $PinReferencedPath}
+    }
+Set-QuickAccess -Action Pin -Path $PinsDir\$PinSymLinkName
 }
+
+Start-Sleep 5
